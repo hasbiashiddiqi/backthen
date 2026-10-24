@@ -1,117 +1,161 @@
-# Planning: Inisialisasi Project Backend (Bun + ElysiaJS + Drizzle ORM + MySQL)
+# Issue: Fitur Registrasi User Baru (Password Hashing & Struktur Routes/Services)
 
-Dokumen ini merupakan panduan perencanaan *high-level* untuk setup dan arsitektur dasar project backend di direktori ini. Dokumen ini dirancang sebagai acuan eksekusi bagi programmer atau LLM pelaksana.
-
----
-
-## 1. Ringkasan & Tech Stack
-
-- **Runtime & Package Manager**: [Bun](https://bun.sh/)
-- **Web Framework**: [ElysiaJS](https://elysiajs.com/)
-- **ORM & Migrations**: [Drizzle ORM](https://orm.drizzle.team/) & Drizzle Kit
-- **Database**: MySQL (koneksi via driver `mysql2` atau native pool)
-- **Validation & Types**: Schema bawaan Elysia (`t` / TypeBox)
+Dokumen ini merupakan panduan perencanaan *task* dan arsitektur untuk diimplementasikan oleh junior programmer atau AI model pelaksana.
 
 ---
 
-## 2. Struktur Direktori yang Direkomendasikan
+## 1. Spesifikasi Kebutuhan
 
-Gunakan pendekatan modular berbasis fitur (*feature-based / domain-driven*) agar kode mudah dirawat dan diskalakan:
+### A. Skema Tabel Database (`users`)
+Perbarui/sesuaikan definisi skema tabel `users` di Drizzle ORM dengan kolom berikut:
 
-```text
-.
-├── .env.example
-├── .gitignore
-├── drizzle.config.ts        # Konfigurasi Drizzle Kit & migrasi
-├── package.json
-├── tsconfig.json
-└── src/
-    ├── index.ts             # Entry point aplikasi (Elysia server)
-    ├── config/              # Validasi environment variable & konfigurasi global
-    │   └── env.ts
-    ├── db/                  # Konfigurasi database & skema
-    │   ├── index.ts         # Inisialisasi client Drizzle & pool MySQL
-    │   └── schema/          # Definisi tabel Drizzle (modular per domain)
-    ├── modules/             # Modul fitur (routes, controller, service)
-    │   └── [feature]/       # Contoh: auth, users, atau items
-    │       ├── index.ts     # Route definitions (Elysia plugin/sub-routes)
-    │       ├── service.ts   # Business logic & query database
-    │       └── model.ts     # DTO / TypeBox validation schema
-    └── middlewares/         # Middleware global (error handling, auth guard, logging)
+| Nama Kolom   | Tipe Data           | Keterangan                                              |
+|--------------|---------------------|---------------------------------------------------------|
+| `id`         | INT / SERIAL        | Primary Key, Auto Increment                             |
+| `name`       | VARCHAR(255)        | NOT NULL                                                |
+| `email`      | VARCHAR(255)        | NOT NULL, UNIQUE                                        |
+| `password`   | VARCHAR(255)        | NOT NULL (Menyimpan hash bcrypt, bukan plaintext)       |
+| `created_at` | TIMESTAMP           | NOT NULL, DEFAULT CURRENT_TIMESTAMP                     |
+
+> **Catatan Hashing Password**:
+> Gunakan utilitas bawaan Bun `await Bun.password.hash(password, { algorithm: "bcrypt", cost: 10 })` untuk hashing. Ini native di Bun tanpa perlu dependensi tambahan.
+
+---
+
+### B. Kontrak API Registrasi
+* **Endpoint**: `POST /api/users`
+* **Content-Type**: `application/json`
+
+#### Request Body
+```json
+{
+  "name": "neymar",
+  "email": "neymar@localhost",
+  "password": "rahasia"
+}
+```
+
+#### Response (Success - Status `200` atau `201`)
+```json
+{
+  "data": "OK"
+}
+```
+
+#### Response (Error - Email Duplikat - Status `400` atau `409`)
+Jika email sudah terdaftar di database:
+```json
+{
+  "error": "Email sudah terdaftar"
+}
 ```
 
 ---
 
-## 3. Rencana Tahapan Implementasi (High-Level Milestones)
+## 2. Standar Struktur Direktori & Konvensi Penamaan File
 
-### Milestone 1: Inisialisasi Project & Konfigurasi Dasar
-1. Inisialisasi project Bun di root folder (`bun init`).
-2. Instalasi dependencies utama:
-   - Dependencies: `elysia`, `drizzle-orm`, `mysql2`
-   - Opsional/Disarankan: `@elysiajs/cors`, `@elysiajs/swagger` (dokumentasi API otomatis)
-   - Dev Dependencies: `drizzle-kit`, `@types/bun`
-3. Konfigurasi `tsconfig.json` yang sesuai untuk TypeScript di Bun.
-4. Setup file `.env.example` dan `.env` yang mencakup:
-   - `PORT` (default misal `3000`)
-   - `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME`
-5. Setup file `.gitignore` (abaikan `node_modules`, `.env`, build artifacts).
+Struktur kode di bawah direktori `src/` disesuaikan dengan pola pemisahan lapisan:
 
----
+```text
+src/
+├── config/
+│   └── env.ts                  # Konfigurasi environment
+├── db/
+│   ├── index.ts                # Client Drizzle & koneksi MySQL
+│   └── schema/
+│       └── users-schema.ts     # Definisi tabel Drizzle ORM
+├── services/
+│   └── users-service.ts        # Logic bisnis (query DB, hash password, cek duplikasi)
+├── routes/
+│   └── users-routes.ts         # Route handler ElysiaJS, validasi skema request
+├── middlewares/
+│   └── error.ts                # Global error handler
+└── index.ts                    # Entry point aplikasi & mounting routes
+```
 
-### Milestone 2: Setup Database & Drizzle ORM
-1. **Koneksi Database**:
-   - Buat pool koneksi MySQL menggunakan `mysql2/promise`.
-   - Inisialisasi Drizzle ORM instance dan export dari `src/db/index.ts`.
-2. **Konfigurasi Drizzle Kit**:
-   - Buat file `drizzle.config.ts` untuk mengarahkan schema path ke `src/db/schema/` dan folder output migrasi (misal `drizzle/`).
-3. **Definisi Schema**:
-   - Buat file schema pertama di `src/db/schema/` (misal: tabel user/sample entity) menggunakan helper MySQL dari Drizzle (`mysqlTable`, `varchar`, `int`, `timestamp`, dll).
-4. **Setup Command Migrasi**:
-   - Siapkan command script di `package.json` untuk:
-     - Generate migrasi SQL (`drizzle-kit generate`)
-     - Eksekusi migrasi (`drizzle-kit migrate` atau `drizzle-kit push`)
-     - Drizzle Studio (`drizzle-kit studio`)
+* **Aturan Penamaan File**:
+  - Berkas route diletakkan di `src/routes/` dengan format kebab-case: `[nama-fitur]-routes.ts` (contoh: `users-routes.ts`).
+  - Berkas service diletakkan di `src/services/` dengan format kebab-case: `[nama-fitur]-service.ts` (contoh: `users-service.ts`).
 
 ---
 
-### Milestone 3: Arsitektur Elysia Server & Routing
-1. **Entry Point (`src/index.ts`)**:
-   - Instansiasi aplikasi Elysia.
-   - Pasang middleware global: CORS, global error handler (`onError`), serta Swagger/OpenAPI UI.
-   - Buat endpoint health check (`GET /health`) yang memverifikasi kesiapan server dan koneksi database.
-2. **Modular Routing**:
-   - Gunakan fitur chaining / plugin Elysia (`new Elysia({ prefix: '/api/v1' })`) untuk mengelompokkan sub-route dari folder `src/modules/`.
-3. **Validasi Request & Response**:
-   - Gunakan schema TypeBox (`t.Object(...)`) bawaan Elysia pada setiap route untuk validasi body, query, dan params.
+## 3. Tahapan Implementasi (Panduan untuk Pelaksana)
+
+Ikuti urutan langkah kerja berikut secara berurutan:
+
+### Langkah 1: Update Schema Database
+1. Buat/perbarui berkas schema di `src/db/schema/users-schema.ts`.
+2. Pastikan kolom `password` dan `created_at` sudah ditambahkan sesuai spesifikasi.
+3. Export skema tabel `users` dari `src/db/schema/index.ts`.
+4. Jalankan sinkronisasi database:
+   ```bash
+   bun run db:push
+   ```
+
+### Langkah 2: Buat Service Bisnis (`src/services/users-service.ts`)
+1. Buat class/fungsi `UsersService`.
+2. Implementasikan method `registerUser(name, email, plainPassword)`:
+   - **Cek Duplikasi**: Query tabel `users` berdasarkan `email`. Jika sudah ada, lemparkan error atau kembalikan status duplikat.
+   - **Hash Password**: Gunakan `Bun.password.hash(plainPassword, { algorithm: "bcrypt" })`.
+   - **Simpan ke DB**: Insert data user (`name`, `email`, `password` yang sudah di-hash) ke database.
+
+### Langkah 3: Buat Route Handler (`src/routes/users-routes.ts`)
+1. Inisialisasi route plugin Elysia:
+   ```typescript
+   export const usersRoutes = new Elysia({ prefix: "/users" })
+   ```
+2. Definisikan endpoint `POST /` (yang nantinya menjadi `/api/users`).
+3. Tambahkan validasi body menggunakan TypeBox schema Elysia (`t.Object({ name: t.String(), email: t.String(), password: t.String() })`).
+4. Panggil `UsersService.registerUser`.
+5. Jika berhasil: kembalikan `{ "data": "OK" }`.
+6. Jika email duplikat: set status HTTP `400` dan kembalikan `{ "error": "Email sudah terdaftar" }`.
+
+### Langkah 4: Daftarkan Route pada Entry Point (`src/index.ts`)
+1. Import `usersRoutes` dari `./routes/users-routes`.
+2. Pasang pada grup prefix `/api`:
+   ```typescript
+   app.group("/api", (api) => api.use(usersRoutes))
+   ```
+
+### Langkah 5: Buat Automated Test (`test/users.test.ts`)
+Buat pengujian dengan `bun test` untuk menguji:
+1. Registrasi user baru berhasil dan mengembalikan `{ "data": "OK" }`.
+2. Password di database tersimpan dalam bentuk hash (bukan plaintext).
+3. Registrasi ulang dengan email yang sama mengembalikan error `{ "error": "Email sudah terdaftar" }`.
 
 ---
 
-### Milestone 4: Error Handling & Format Standar
-1. **Standardized Response**:
-   - Tetapkan format response konsisten, contoh:
-     - Sukses: `{ success: true, data: ..., message: "..." }`
-     - Error: `{ success: false, error: "...", details?: ... }`
-2. **Centralized Error Handling**:
-   - Tangani error umum (Validation error, Not Found, Database Error/Constraint) melalui lifecycle hook `onError` di Elysia.
+## 4. Best Practice Pengetesan di Linux WSL
+
+> **Pertanyaan**: Saat pengetesan di WSL, apakah lebih baik langsung build semua ke dalam image container, atau jalankan langsung di host WSL?
+
+### Rekomendasi: **Host Native Execution + Containerized Database** (Pilihan Terbaik)
+
+* **Alur Pengetesan Harian (Development & Testing)**:
+  1. Biarkan **MySQL tetap berjalan di dalam container** (Podman / Docker) pada port `3306`.
+  2. Jalankan kode aplikasi dan pengetesan **langsung di environment host WSL**:
+     ```bash
+     # Terminal 1: Menjalankan server hot-reload
+     bun run dev
+
+     # Terminal 2: Menjalankan test cepat
+     bun test
+     ```
+  * **Alasan Mengapa Ini Best Practice**:
+    - **Sangat Cepat (Instant Feedback)**: Perubahan kode langsung aktif dalam hitungan milidetik tanpa perlu proses re-build image yang memakan waktu dan resource disk/CPU.
+    - **Debugging Mudah**: Error stack trace langsung menunjuk ke file baris kode di editor.
+    - **Database Tetap Terisolasi**: Database tetap rapi di dalam container tanpa mengotori sistem OS host.
+
+* **Kapan Image Container Perlu Di-build?**:
+  - Image container (`podman build` / `docker compose up`) hanya perlu di-build **sekali di akhir**, yaitu saat fitur sudah selesai diuji dan siap di-merge/dideploy ke staging atau production, untuk memastikan build context tidak ada masalah.
 
 ---
 
-## 4. Daftar Script `package.json` yang Harus Disediakan
+## 5. Kriteria Selesai (Acceptance Criteria)
 
-Pelaksana wajib memastikan script berikut terdaftar pada `package.json`:
-- `"dev"`: Menjalankan server dalam mode hot-reload (`bun --watch src/index.ts`)
-- `"start"`: Menjalankan server mode produksi (`bun src/index.ts`)
-- `"db:generate"`: Membuat file migrasi Drizzle dari schema
-- `"db:migrate"`: Menerapkan migrasi ke database MySQL
-- `"db:push"`: Melakukan sinkronisasi schema langsung ke database (lingkungan dev)
-- `"db:studio"`: Membuka dashboard Drizzle Studio
-
----
-
-## 5. Checklist Verifikasi / Kriteria Selesai (Acceptance Criteria)
-
-- [x] Project berhasil di-build dan dijalankan dengan perintah `bun run dev` tanpa error.
-- [x] Endpoint `GET /health` merespons status `200 OK`.
-- [x] Drizzle ORM dapat tersambung ke MySQL dan berhasil mengeksekusi migrasi schema dasar.
-- [x] Dokumentasi API Swagger dapat diakses melalui browser (misal: `http://localhost:3000/swagger`).
-- [x] Kode terorganisir rapi mengikuti konvensi modular yang telah ditentukan.
+- [x] Kolom `password` (bcrypt) dan `created_at` tersedia di tabel `users`.
+- [x] Endpoint `POST /api/users` berfungsi sesuai kontrak request dan response body yang ditentukan.
+- [x] Upaya mendaftarkan email yang sama ditolak dengan pesan `{"error": "Email sudah terdaftar"}`.
+- [x] Password tersimpan di MySQL dalam bentuk hash bcrypt (dimulai dengan prefix `$2a$` atau `$2b$`).
+- [x] Struktur direktori mematuhi pembagian `src/routes/users-routes.ts` dan `src/services/users-service.ts`.
+- [x] Seluruh automated test (`bun test`) lulus tanpa error.
