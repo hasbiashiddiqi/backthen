@@ -7,13 +7,16 @@ Backend REST API service dibangun menggunakan **Bun**, **ElysiaJS**, **Drizzle O
 - **Runtime**: [Bun](https://bun.sh/)
 - **Framework**: [ElysiaJS](https://elysiajs.com/)
 - **ORM**: [Drizzle ORM](https://orm.drizzle.team/) & Drizzle Kit
-- **Database**: MySQL (koneksi pool via `mysql2`)
+- **Database**: MySQL 8.x (koneksi pool via `mysql2`)
+- **Containerization**: Docker / Podman
 - **API Docs**: Swagger UI (`@elysiajs/swagger`)
 
 ## Struktur Proyek
 
 ```text
 .
+├── Dockerfile               # Multi-stage container build untuk Bun
+├── docker-compose.yml       # Orkestrasi container App + MySQL
 ├── drizzle/                 # Berkas migrasi SQL hasil generate Drizzle
 ├── drizzle.config.ts        # Konfigurasi Drizzle Kit
 ├── src/
@@ -32,7 +35,7 @@ Backend REST API service dibangun menggunakan **Bun**, **ElysiaJS**, **Drizzle O
 
 1. **Prasyarat**:
    - [Bun](https://bun.sh/) v1.0+
-   - MySQL 8.x / MariaDB
+   - MySQL 8.x (bisa dijalankan via Docker/Podman)
 
 2. **Instalasi Dependensi**:
    ```bash
@@ -45,18 +48,30 @@ Backend REST API service dibangun menggunakan **Bun**, **ElysiaJS**, **Drizzle O
    cp .env.example .env
    ```
 
-4. **Migrasi Database**:
+4. **Menjalankan Database (via Podman atau Docker)**:
+   Jika menggunakan Podman:
    ```bash
-   # Generate file migrasi dari schema Drizzle
-   bun run db:generate
+   podman run -d --name backthen_mysql \
+     -e MYSQL_ROOT_PASSWORD=rootpassword \
+     -e MYSQL_DATABASE=backthen_db \
+     -p 3306:3306 \
+     -v backthen_mysql_data:/var/lib/mysql \
+     docker.io/library/mysql:8.0
+   ```
 
-   # Terapkan migrasi ke database MySQL
+5. **Migrasi Database**:
+   ```bash
+   # Sinkronisasi schema langsung ke database
+   bun run db:push
+
+   # Atau generate dan jalankan migration file
+   bun run db:generate
    bun run db:migrate
    ```
 
 ## Menjalankan Aplikasi
 
-- **Development Mode** (dengan auto-reload):
+- **Development Mode** (auto-reload):
   ```bash
   bun run dev
   ```
@@ -76,6 +91,17 @@ Backend REST API service dibangun menggunakan **Bun**, **ElysiaJS**, **Drizzle O
   ```bash
   bun run db:studio
   ```
+
+## Menjalankan dengan Docker / Podman Compose
+
+Untuk menjalankan seluruh stack (Aplikasi + MySQL) dalam container:
+```bash
+# Menggunakan Docker Compose:
+docker compose up -d
+
+# Atau menggunakan Podman:
+podman-compose up -d
+```
 
 ## Endpoints Utama
 
