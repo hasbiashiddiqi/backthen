@@ -108,6 +108,4 @@ podman-compose up -d
 - **Health Check**: `GET http://localhost:3000/health`
 - **Swagger Documentation**: `http://localhost:3000/swagger`
 - **Users API**:
-  - `GET /api/v1/users` - Mengambil semua user
-  - `GET /api/v1/users/:id` - Mengambil detail user berdasarkan ID
-  - `POST /api/v1/users` - Membuat user baru
+  - `POST /api/users` - Registrasi user baru (dengan hashing password bcrypt)

@@ -4,7 +4,7 @@ import { swagger } from "@elysiajs/swagger";
 import { env } from "./config/env";
 import { checkDatabaseConnection } from "./db";
 import { errorHandler } from "./middlewares/error";
-import { userModule } from "./modules/users";
+import { usersRoutes } from "./routes/users-routes";
 
 export const app = new Elysia()
   .use(cors())
@@ -18,7 +18,7 @@ export const app = new Elysia()
         },
         tags: [
           { name: "General", description: "Health check & general endpoints" },
-          { name: "Users", description: "User management endpoints" },
+          { name: "Users", description: "User management & registration endpoints" },
         ],
       },
       path: "/swagger",
@@ -45,7 +45,7 @@ export const app = new Elysia()
       },
     }
   )
-  .group("/api/v1", (api) => api.use(userModule))
+  .group("/api", (api) => api.use(usersRoutes))
   .listen(env.PORT, () => {
     console.log(`🦊 Server is running at http://localhost:${env.PORT}`);
     console.log(`📚 Swagger docs available at http://localhost:${env.PORT}/swagger`);

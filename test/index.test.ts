@@ -12,7 +12,7 @@ describe("Backthen API Tests", () => {
 
   it("POST /api/v1/users should validate input body and reject invalid payload", async () => {
     const response = await app.handle(
-      new Request("http://localhost:3000/api/v1/users", {
+      new Request("http://localhost:3000/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "A" }), // invalid: minLength 2, missing email
